@@ -128,28 +128,64 @@ def delete_photos_from_tv(tv: SamsungTVWS, photo_ids: Optional[List[str]] = None
             logger.info("Attempting to list photos in Art Mode collection...")
             photo_ids = list_photos_in_art_mode(art)
 
-        # If we have specific photo IDs, delete them one by one
+        # If we have specific photo IDs, try to delete them
         if photo_ids:
-            logger.info(f"Deleting {len(photo_ids)} photo(s)...")
+            logger.info(f"Found {len(photo_ids)} photo(s).")
+
+            # extract pure IDs if we have dictionaries
+            clean_ids = []
+            for p in photo_ids:
+                if isinstance(p, dict):
+                    # Try common ID fields
+                    for key in ['content_id', 'id', 'Matte_ID', 'file_path']:
+                        if key in p:
+                            clean_ids.append(p[key])
+                            break
+                else:
+                    clean_ids.append(p)
+
+            # If we extracted IDs, use those, otherwise use original list
+            target_list = clean_ids if len(clean_ids) == len(photo_ids) else photo_ids
+
+            # 1. Try bulk delete with delete_list()
+            if hasattr(art, 'delete_list'):
+                try:
+                    logger.info(f"Attempting to delete all {len(target_list)} photos at once using delete_list()...")
+                    art.delete_list(target_list)
+                    logger.info("✓ Successfully deleted all photos at once!")
+                    return True
+                except Exception as e:
+                    logger.warning(f"Bulk delete_list() failed: {e}. Falling back to individual deletion.")
+
+            # 2. Fallback to deleting one by one
+            logger.info(f"Deleting {len(photo_ids)} photo(s) one by one...")
             success_count = 0
             failed_count = 0
 
             for photo_id in photo_ids:
+                # If it's a dict, try to find the ID to use for deletion
+                item_to_delete = photo_id
+                if isinstance(photo_id, dict):
+                     for key in ['content_id', 'id', 'Matte_ID']:
+                        if key in photo_id:
+                            item_to_delete = photo_id[key]
+                            break
+
                 try:
                     # Try different delete methods
                     if hasattr(art, 'delete'):
-                        art.delete(photo_id)
+                        art.delete(item_to_delete)
                     elif hasattr(art, 'remove'):
-                        art.remove(photo_id)
+                        art.remove(item_to_delete)
                     else:
-                        logger.error(f"No delete method available for photo {photo_id}")
+                        logger.error(f"No delete method available for photo {item_to_delete}")
                         failed_count += 1
                         continue
 
-                    logger.info(f"✓ Deleted photo: {photo_id}")
+                    logger.info(f"✓ Deleted photo: {item_to_delete}")
                     success_count += 1
                 except Exception as e:
-                    logger.error(f"✗ Failed to delete photo {photo_id}: {e}")
+                    logger.error(f"✗ Failed to delete photo {item_to_delete}: {e}")
                     failed_count += 1
                     continue
 
