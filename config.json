@@ -1,0 +1,7 @@
+{
+  "tv_ip": "192.168.1.129",
+  "tv_port": 8002,
+  "folder_path": "~/SelectedPhotos",
+  "token_file": "~/.samsungtv-token",
+  "supported_formats": [".jpg", ".jpeg", ".png", ".jfif"]
+}
